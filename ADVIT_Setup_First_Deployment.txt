@@ -1,0 +1,700 @@
+Prerequisites: 
+
+ 
+
+1. Docker 
+
+2. MongoDB 
+
+3. NVIDIA Docker 
+
+4. CUDA 
+
+5. NVIDIA Drivers 
+
+6. Docker Private Repository 
+
+7. Kubernetes 
+
+8. NFS (Server & client) 
+
+ 
+
+“INSTALLATION OF DOCKER” 
+
+“Firstly, remove older packages” 
+
+sudo apt purge docker* containerd* -y 
+
+sudo apt-get remove docker docker-engine docker.io containerd runc –y 
+
+sudo rm -rf /var/lib/docker /etc/docker 
+
+sudo groupdel docker 
+
+sudo rm -rf /var/run/docker.sock 
+
+sudo rm -rf /var/run/docker.sock 
+
+sudo apt autoremove -y 
+
+sudo apt autoclean –y 
+
+sudo apt-get update –y 
+
+sudo update-ca-certificates 
+
+“Now, start docker installation” 
+
+Update package index 
+
+sudo apt update 
+
+  2) Install Dependencies 
+
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common 
+
+  3) Add Docker’s GPG Key 
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg 
+
+  4) Setup Docker Repository 
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null 
+
+ 5) Update package index again 
+
+sudo apt update 
+
+ 6) Install Docker Engine 
+
+     sudo apt install -y docker-ce docker-ce-cli containerd.io 
+
+ 7) Verify Docker Installation 
+
+    sudo docker --version 
+
+ 8) Manage Docker as a non-root user 
+
+    sudo usermod -aG docker $USER 
+
+ 9) Check docker installation status 
+
+    sudo systemctl status docker 
+
+ 
+
+ 
+
+“INSTALLATION OF MONGODB” 
+
+ 
+
+Install prerequisite packages 
+
+sudo apt install software-properties-common gnupg apt-transport-https ca-certificates -y 
+
+Create the public key 
+
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 
+
+Add MongoDB repository to directory 
+
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list 
+
+Update the local package index 
+
+sudo apt update 
+
+Install MongoDB 
+
+sudo apt install mongodb-org –y 
+
+ 
+
+Check MongoDB version 
+
+mongod –-version 
+
+Start MongoDB service 
+
+sudo systemctl start mongod 
+
+Check MongoDB status 
+
+sudo systemctl status mongod 
+
+ 
+
+“INSTALLATION OF NVIDIA DOCKER” 
+
+Go to root 
+
+sudo su 
+
+Update the packages 
+
+apt update 
+
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add - 
+
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID) 
+
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list 
+
+sudo apt-get update 
+
+sudo apt-get install -y nvidia-docker2 
+
+sudo pkill -SIGHUP dockerd 
+
+ 
+
+“INSTALLATION OF CUDA TOOLKIT” 
+
+sudo apt update –y 
+
+sudo apt install nvidia-cuda-toolkit –y 
+
+export PATH=/usr/local/cuda/bin${PATH:+:${PATH}} >> ~/.bashrc 
+
+ 
+
+“INSTALLATION OF NVIDIA DRIVERS” 
+
+sudo apt-get install linux-headers-$(uname -r) 
+
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID | sed -e 's/\.//g') && wget https://developer.download.nvidia.com/compute/cuda/repos/$distribution/x86_64/cuda-$distribution.pin && sudo mv cuda-$distribution.pin /etc/apt/preferences.d/cuda-repository-pin-600 
+
+sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$distribution/x86_64/3bf863cc.pub && "deb http://developer.download.nvidia.com/compute/cuda/repos/$distribution/x86_64 /" | sudo tee /etc/apt/sources.list.d/cuda.list 
+
+sudo apt-get update 
+
+sudo apt-get -y install cuda-driver 
+
+ 
+
+“Creating Docker Private Repository” 
+
+1) Requirements 
+
+A) Docker installed 
+
+B) At least two machines for server-client setup 
+
+- server1 
+
+- client1 
+
+2) Steps to do on all machines 
+
+A) Add hostname and ip address of every host in all hosts list  
+
+ 
+
+sudo nano /etc/hosts 
+
+ 
+
+B) Save the file 
+
+ 
+
+3) Steps to do on server1 
+
+ 
+
+A) Login as root 
+
+ 
+
+sudo su 
+
+ 
+
+B) Make a folder where docker files will be stored 
+
+ 
+
+mkdir -p /docker_data/certs 
+
+ 
+
+C) Check whether OPENSSL is installed or not 
+
+ 
+
+openssl version 
+
+ 
+
+D) If OPENSSL isnot installed then install it by following command : apt install openssl 
+
+ 
+
+E) Generate a certificate which will check authentication 
+
+ 
+
+openssl req -newkey rsa:4096 -nodes -sha256 –keyout 	/docker_data/certs/domain.key -x509 -days 365 –out /docker_data/certs/domain.crt 
+
+ 
+
+F) While generating a certificate, we need to fill in the information. It's not necessary to fill in all fields; we can skip by just hitting 'Enter'. However, the main field we have to fill in is the 'Common Name', through which communication takes place. So, enter the same as your server hostname (e.g., dockerrepo). 
+
+ 
+
+ 
+
+G) Check whether the files are generated 
+
+ 
+
+ll /docker_data/certs/ 
+
+ 
+
+H) Create a folder to save docker images 
+
+ 
+
+mkdir -p /docker_data/images 
+
+ 
+
+I) Now create a private docker registry 
+
+ 
+
+docker run -d -p 5000:5000 -v /docker_data/images:/var/lib/registry -v /docker_data/certs:/certs -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key --restart=on-failure --name myregistry docker.io/registry 
+
+ 
+
+Example : For Retinanet  
+
+ docker run -d -p 5000:5000 \ 
+
+-v /docker_data/images:/var/lib/registry \ 
+
+-v /docker_data/certs:/certs \ 
+
+-e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \ 
+
+-e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \ 
+
+--restart on-failure \ 
+
+--name retinanet \ 
+
+Docker.io/registry 
+
+ 
+
+Here, retinanet is your docker repository name where you are storing your retinanet 
+
+ 
+
+J) Check if container is running or not 
+
+ 
+
+docker ps –a 
+
+ 
+
+K) Also verify images 
+
+ 
+
+docker images 
+
+ 
+
+L) Let’s pull new image 
+
+ 
+
+docker pull nginx 
+
+ 
+
+docker images #check images 
+
+ 
+
+ 
+
+M) Rename the docker images before pushing them to private 
+
+docker registry 
+
+ 
+
+docker tag docker.io/nginx localhost:5000/my-nginx 
+
+ 
+
+docker images #check newly renamed image in list 
+
+N) Now push newly created image to private registry 
+
+ 
+
+docker push localhost:5000/my-nginx 
+
+ 
+
+O) You can view pushed images in directory 
+
+ 
+
+ll /docker_data/images/docker/registry/v2/repositories/ 
+
+ 
+
+P) Now copy the domain.crt and domain.key files to client side 
+
+ 
+
+scp -r /docker_data/certs/domain.crt client1:/home/client1/Desktop 
+
+ 
+
+Q) Configure client1 node 
+
+ 
+
+ssh client1@ip-address 
+
+ 
+
+ 
+
+ 
+4) Steps to do on client: 
+
+     A) Login as root 
+
+sudo su 
+
+B) Move to certs.d folder 
+
+cd /etc/docker/certs.d 
+
+#Create the certs.d folder if not present. 
+
+C) Create directory and name it as we specified in certificate common name 
+
+ 
+
+mkdir -p dockerrepo:5000 
+
+ 
+
+D) Copy the domain.crt to dockerrepo folder 
+
+ 
+
+cp -rf /home/client1/Desktop/domain.crt dockerrepo\:5000/ 
+
+ 
+
+E) Now pull the required image form server1 
+
+ 
+
+docker pull dockerrepo:5000/my-nginx 
+
+ 
+
+F) Verify the images pulled 
+
+ 
+
+docker images 
+
+ 
+
+ 
+
+G) Run the image 
+
+ 
+
+docker run -d -it - -name server1 dockerrepo:5000/my-nginx /bin/bash 
+
+ 
+
+H) Confirm if its running 
+
+ 
+
+docker ps –a 
+
+ 
+
+I) Now login to server1 to make changes and push it back to private registry 
+
+ 
+
+docker exec -it server1 /bin/bash 
+
+ 
+
+J) As a change create a directory and exit 
+
+ 
+
+mkdir test_dir 
+
+Exit 
+
+ 
+
+K) We need to commit before push 
+
+ 
+
+docker commit server1 dockerrepo:5000/new-nginx:v1 
+
+ 
+
+L) Check if new image is created 
+
+ 
+
+docker images 
+
+ 
+
+M) Now push the newly created image 
+
+ 
+
+docker push dockerrepo:5000/new-nginx:v1 
+
+ 
+
+Ex.   docker push dockerrepo:5000/retinanet:v1 
+
+ 
+
+N) Stop the running container 
+
+ 
+
+docker stop server1 
+
+ 
+
+O) Remove the container 
+
+ 
+
+Docker rm server1 
+
+ 
+
+P) Now to check if push operation was successfull, pull the image we pushed to server 
+
+ 
+
+docker pull dockerrepo:5000/new-nginx:v1 
+
+ 
+
+#If pull operation starts, then its correct. 
+
+Q) Now run the image 
+
+ 
+
+docker run -d -it - -name server1 dockerrepo:5000/new-nginx:v1 
+
+/bin/bash 
+
+ 
+
+R) Login to the server 
+
+ 
+
+docker exec -it server1 /bin/bash 
+
+ 
+
+S) Now check the ‘test_dir’ is present or not as a change we pushed before 
+
+ 
+
+ll 
+
+ 
+
+T) Go to Step 10 if want to make changes any. 
+
+ 
+
+KUBERNETES SETUP 
+
+PREREQUISITES ON ALL MACHINES: 
+
+1) NVIDIA Drivers on all GPU Systems 
+
+2) Docker 
+
+3) Allow Docker to use GPU 
+
+Edit the file as below on GPU systems: 
+
+ 
+
+#sudo nano /etc/docker/daemon.json 
+
+{ 
+
+{ 
+
+    "default-runtime": "nvidia", 
+
+    "runtimes": {  
+
+        "nvidia": {  
+
+            "path": "nvidia-container-runtime", 
+
+            "runtimeArgs": [] 
+
+        } 
+
+    }, 
+
+    "exec-opts": ["native.cgroupdriver=systemd"], 
+
+    "log-driver": "json-file", 
+
+    "log-opts": { 
+
+      "max-size": "100m" 
+
+    }, 
+
+    "storage-driver": "overlay2" 
+
+} 
+
+ 
+
+ 
+
+On All Systems: 
+
+sudo swapoff –a 
+
+sudo apt-get update 
+
+sudo apt-get install -y apt-transport-https ca-certificates curl 
+
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg 
+
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list 
+
+sudo apt-get update 
+
+sudo apt-get install -y kubelet kubeadm kubectl 
+
+sudo apt-mark hold kubelet kubeadm kubectl 
+
+ 
+
+On Master: 
+
+sudo kubeadm init –apiserver-advertise-address=192.168.0.0 
+
+#Save the output in a text file. 
+
+#Follow the instructions as suggested on terminal at this stage 
+
+mkdir -p $HOME/.kube 
+
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config 
+
+sudo chown $(id -u):$(id -g) $HOME/.kube/config 
+
+kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')" 
+
+ 
+
+On Worker: 
+
+sudo kubeadm join <join command saved on master node> 
+
+ 
+
+On Master: 
+
+kubectl get nodes 
+
+#Wait until all nodes are in ready state. 
+
+ 
+
+#Run below command on Master to install nvidia-plugin on all GPU Worker nodes : 
+
+ 
+
+sudo kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/1.0.0-beta4/nvidia-device-plugin.yml 
+
+ 
+
+ 
+
+NFS 
+
+ 
+
+1) INSTALL NFS SERVER ON YOUR SYSTEM 
+
+sudo apt update 
+
+sudo apt install nfs-kernel-server 
+
+sudo systemctl restart nfs-kernel-server 
+
+# Run the command below by specifying the NFS mount directory name. 
+
+ 
+
+sudo mkdir -p /mnt/nfs_share 
+
+sudo chown -R nobody:nogroup /mnt/nfs_share/ 
+
+sudo chmod 777 /mnt/nfs_share/ 
+
+sudo nano /etc/exports 
+
+/mnt/nfs_share  client_IP_1 (re,sync,no_subtree_check) 
+
+/mnt/nfs_share  client_IP_2 (re,sync,no_subtree_check) 
+
+SAVE THE FILE 
+
+ 
+
+2) INSTALL NFS CLIENT ON SYSTEM 
+
+sudo apt update 
+
+sudo apt install nfs-common 
+
+# Create an NFS Mount Point on Client 
+
+sudo mkdir -p /mnt/nfs_clientshare 
+
+sudo mount server-ip:/mnt/nfs_share  /mnt/nfs_clientshare 
+
+# Now, test the NFS share by adding files in the NFS server 
+
+cd /mnt/nfs_share/ 
+
+touch file1.txt file2.txt file3.txt 
